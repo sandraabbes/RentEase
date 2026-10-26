@@ -1,9 +1,11 @@
 import { useState, useEffect, useContext } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import AuthContext from '../context/AuthContext';
+import FavoritesContext from '../context/FavoritesContext';
+import PropertyMap from '../components/PropertyMap';
 
-/* SVG icons — consistent 16px, stroke-width 1.5 */
+/* SVG icons — consistent 16px, stroke-width 1.75 */
 const ArrowLeftIcon = () => (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <line x1="19" y1="12" x2="5" y2="12"/>
@@ -12,17 +14,35 @@ const ArrowLeftIcon = () => (
 );
 
 const MapPinIcon = () => (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/>
         <circle cx="12" cy="10" r="3"/>
     </svg>
 );
 
-const DoorOpenIcon = () => (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M13 4H3v18h10V4z"/>
-        <path d="M21 20V8l-8-4"/>
-        <circle cx="16" cy="12" r="1" fill="currentColor"/>
+const BedIcon = () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M2 4v16M2 8h18a2 2 0 0 1 2 2v10M2 17h20M6 8v9"/>
+    </svg>
+);
+
+const BathIcon = () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M4 12h16a1 1 0 0 1 1 1v3a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4v-3a1 1 0 0 1 1-1zM6 12V5a2 2 0 0 1 2-2h1M4 21l1-2M20 21l-1-2"/>
+    </svg>
+);
+
+const MaximizeIcon = () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+    </svg>
+);
+
+const CalendarIcon = () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+        <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+        <line x1="3" y1="10" x2="21" y2="10"/>
     </svg>
 );
 
@@ -32,11 +52,30 @@ const CheckIcon = () => (
     </svg>
 );
 
+const HeartIcon = ({ filled }) => (
+    <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill={filled ? '#e63946' : 'none'}
+        stroke={filled ? '#e63946' : 'currentColor'}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+    >
+        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+    </svg>
+);
+
 const PropertyDetails = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const { user } = useContext(AuthContext);
+    const { isFavorite, toggleFavorite } = useContext(FavoritesContext);
+
     const [property, setProperty] = useState(null);
+    const [selectedImage, setSelectedImage] = useState(0);
     const [message, setMessage] = useState('');
     const [msgSent, setMsgSent] = useState(false);
     const [sending, setSending] = useState(false);
@@ -79,65 +118,186 @@ const PropertyDetails = () => {
         );
     }
 
+    const favorited = isFavorite(property._id);
+    const images = property.images && property.images.length > 0 ? property.images : [];
+    const formattedDate = property.availableFrom
+        ? new Date(property.availableFrom).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : 'Immediate';
+
     return (
         <div className="container">
             <div className="detail-page">
-                <button
-                    type="button"
-                    className="detail-back"
-                    onClick={() => navigate(-1)}
-                    aria-label="Back to listings"
-                >
-                    <ArrowLeftIcon />
-                    All listings
-                </button>
+                <div className="detail-top-bar">
+                    <button
+                        type="button"
+                        className="detail-back"
+                        onClick={() => navigate(-1)}
+                        aria-label="Back to listings"
+                    >
+                        <ArrowLeftIcon />
+                        All listings
+                    </button>
+
+                    <button
+                        type="button"
+                        className={`detail-save-btn ${favorited ? 'detail-save-btn--active' : ''}`}
+                        onClick={() => {
+                            if (!user) navigate('/login');
+                            else toggleFavorite(property);
+                        }}
+                    >
+                        <HeartIcon filled={favorited} />
+                        <span>{favorited ? 'Saved to collection' : 'Save property'}</span>
+                    </button>
+                </div>
 
                 <div className="detail-grid">
-                    {/* Left: image */}
-                    <div className="detail-image-wrap">
-                        {property.images && property.images.length > 0 ? (
-                            <img
-                                src={property.images[0]}
-                                alt={property.title}
-                                className="detail-image"
-                            />
-                        ) : (
-                            <div className="detail-no-image">No photo available</div>
+                    {/* Left: Gallery & Map */}
+                    <div className="detail-media-wrap">
+                        <div className="detail-main-image-wrap">
+                            {images.length > 0 ? (
+                                <img
+                                    src={images[selectedImage] || images[0]}
+                                    alt={property.title}
+                                    className="detail-image"
+                                />
+                            ) : (
+                                <div className="detail-no-image">No photos uploaded for this property</div>
+                            )}
+
+                            {property.status && property.status !== 'available' && (
+                                <div className={`status-badge-overlay status-badge--${property.status}`}>
+                                    {property.status.toUpperCase()}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Thumbnails */}
+                        {images.length > 1 && (
+                            <div className="detail-thumbnails">
+                                {images.map((img, idx) => (
+                                    <button
+                                        type="button"
+                                        key={idx}
+                                        onClick={() => setSelectedImage(idx)}
+                                        className={`detail-thumb-btn ${selectedImage === idx ? 'detail-thumb-btn--active' : ''}`}
+                                    >
+                                        <img src={img} alt={`Thumbnail ${idx + 1}`} />
+                                    </button>
+                                ))}
+                            </div>
                         )}
+
+                        {/* Map View */}
+                        <PropertyMap
+                            lat={property.lat}
+                            lng={property.lng}
+                            title={property.title}
+                            address={property.address}
+                            city={property.city}
+                            price={property.price}
+                        />
                     </div>
 
-                    {/* Right: info */}
+                    {/* Right: Property Details & Contact Form */}
                     <div className="detail-info">
-                        <p className="detail-city">
-                            <MapPinIcon />
-                            {property.city}
-                        </p>
+                        <div className="detail-category-row">
+                            <span className="card-type-badge">{property.propertyType || 'Apartment'}</span>
+                            <span className="detail-status-pill">{property.status || 'available'}</span>
+                        </div>
 
                         <h1 className="detail-title">{property.title}</h1>
 
-                        <p className="detail-price">
-                            ${Number(property.price).toLocaleString()}
-                            <span> / month</span>
+                        <p className="detail-city">
+                            <MapPinIcon />
+                            {property.address ? `${property.address}, ` : ''}{property.city}
                         </p>
 
-                        <div className="detail-pills">
-                            <span className="detail-pill">
-                                <DoorOpenIcon />
-                                {property.rooms} {property.rooms === 1 ? 'room' : 'rooms'}
-                            </span>
-                            <span className="detail-pill">
-                                <MapPinIcon />
-                                {property.city}
-                            </span>
+                        <div className="detail-price-box">
+                            <div className="detail-price">
+                                ${Number(property.price).toLocaleString()}
+                                <span> / month</span>
+                            </div>
+                            {property.depositAmount > 0 && (
+                                <div className="detail-deposit">
+                                    Deposit: <strong>${Number(property.depositAmount).toLocaleString()}</strong>
+                                </div>
+                            )}
                         </div>
 
-                        <div>
-                            <p className="detail-desc-label">About this property</p>
-                            <p className="detail-desc" style={{ marginTop: '0.5rem' }}>{property.description}</p>
+                        {/* Key Specs Grid */}
+                        <div className="detail-specs-grid">
+                            <div className="spec-card">
+                                <BedIcon />
+                                <span className="spec-card__val">{property.bedrooms || property.rooms || 1}</span>
+                                <span className="spec-card__label">Bedrooms</span>
+                            </div>
+                            <div className="spec-card">
+                                <BathIcon />
+                                <span className="spec-card__val">{property.bathrooms || 1}</span>
+                                <span className="spec-card__label">Bathrooms</span>
+                            </div>
+                            {property.surfaceArea && (
+                                <div className="spec-card">
+                                    <MaximizeIcon />
+                                    <span className="spec-card__val">{property.surfaceArea} m²</span>
+                                    <span className="spec-card__label">Area</span>
+                                </div>
+                            )}
+                            <div className="spec-card">
+                                <CalendarIcon />
+                                <span className="spec-card__val">{property.minLeaseMonths || 1} mo</span>
+                                <span className="spec-card__label">Min Lease</span>
+                            </div>
                         </div>
 
+                        {/* Availability and furnishing bar */}
+                        <div className="detail-highlight-strip">
+                            <div className="highlight-item">
+                                <span className="highlight-item__label">Available From</span>
+                                <span className="highlight-item__val">{formattedDate}</span>
+                            </div>
+                            <div className="highlight-item">
+                                <span className="highlight-item__label">Furnishing</span>
+                                <span className="highlight-item__val">
+                                    {property.furnished ? 'Fully Furnished' : 'Unfurnished'}
+                                </span>
+                            </div>
+                            <div className="highlight-item">
+                                <span className="highlight-item__label">Pets Policy</span>
+                                <span className="highlight-item__val">
+                                    {property.petsAllowed ? 'Pets Allowed' : 'No Pets'}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Description */}
+                        <div className="detail-desc-block">
+                            <h2 className="detail-desc-label">About this property</h2>
+                            <p className="detail-desc">{property.description}</p>
+                        </div>
+
+                        {/* Amenities */}
+                        {property.amenities && property.amenities.length > 0 && (
+                            <div className="detail-amenities-block">
+                                <h2 className="detail-desc-label">Amenities & Features</h2>
+                                <div className="detail-amenities-tags">
+                                    {property.amenities.map((amenity, i) => (
+                                        <span key={i} className="detail-amenity-tag">
+                                            <CheckIcon />
+                                            {amenity}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Contact Owner Section */}
                         <div className="contact-section">
-                            <h2 className="contact-title">Send a message to the owner</h2>
+                            <h2 className="contact-title">Contact Property Owner</h2>
+                            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--ink-3)', marginBottom: 'var(--s3)' }}>
+                                {property.owner && property.owner.name ? `Managed by ${property.owner.name}` : 'Direct listing by verified owner'}
+                            </p>
 
                             {msgSent && (
                                 <div className="message-success">

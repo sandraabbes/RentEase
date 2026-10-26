@@ -104,8 +104,8 @@ const Register = () => {
                         <div className="form-group">
                             <label className="form-label" htmlFor="reg-role">Account type</label>
                             <select id="reg-role" name="role" value={role} onChange={onChange}>
-                                <option value="user">Tenant — browse and contact owners</option>
-                                <option value="admin">Owner / Admin — list and manage properties</option>
+                                <option value="user">Tenant — browse, save, and contact owners</option>
+                                <option value="owner">Property Owner / Landlord — list and manage properties</option>
                             </select>
                         </div>
                         <button

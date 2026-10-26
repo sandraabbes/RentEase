@@ -6,12 +6,20 @@ const User = require('../models/User');
 const auth = require('../middleware/authMiddleware');
 
 // @route   POST api/auth/register
-// @desc    Register user
+// @desc    Register user (Tenant or Owner only — Admin cannot be registered publicly)
 // @access  Public
 router.post('/register', async (req, res) => {
     const { name, email, password, role } = req.body;
 
     try {
+        // Prevent registration with admin role
+        if (role === 'admin') {
+            return res.status(403).json({ msg: 'Registration with administrator privileges is prohibited.' });
+        }
+
+        // Only allow 'user' (tenant) or 'owner'
+        const assignedRole = role === 'owner' ? 'owner' : 'user';
+
         let user = await User.findOne({ email });
 
         if (user) {
@@ -22,7 +30,7 @@ router.post('/register', async (req, res) => {
             name,
             email,
             password,
-            role
+            role: assignedRole
         });
 
         const salt = await bcrypt.genSalt(10);
@@ -43,7 +51,7 @@ router.post('/register', async (req, res) => {
             { expiresIn: 360000 },
             (err, token) => {
                 if (err) throw err;
-                res.json({ token });
+                res.json({ token, role: user.role });
             }
         );
     } catch (err) {
@@ -84,7 +92,7 @@ router.post('/login', async (req, res) => {
             { expiresIn: 360000 },
             (err, token) => {
                 if (err) throw err;
-                res.json({ token });
+                res.json({ token, role: user.role });
             }
         );
     } catch (err) {
@@ -99,6 +107,7 @@ router.post('/login', async (req, res) => {
 router.get('/user', auth, async (req, res) => {
     try {
         const user = await User.findById(req.user.id).select('-password');
+        if (!user) return res.status(404).json({ msg: 'User not found' });
         res.json(user);
     } catch (err) {
         console.error(err.message);
