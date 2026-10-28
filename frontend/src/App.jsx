@@ -10,6 +10,7 @@ import Register from './pages/Register';
 import AdminDashboard from './pages/AdminDashboard';
 import AddProperty from './pages/AddProperty';
 import EditProperty from './pages/EditProperty';
+import Messages from './pages/Messages';
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
               <Route path="/" element={<Home />} />
               <Route path="/properties/:id" element={<PropertyDetails />} />
               <Route path="/favorites" element={<Favorites />} />
+              <Route path="/messages" element={<Messages />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/admin" element={<AdminDashboard />} />
@@ -36,3 +38,4 @@ function App() {
 }
 
 export default App;
+

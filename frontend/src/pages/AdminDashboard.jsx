@@ -47,6 +47,12 @@ const LockIcon = () => (
     </svg>
 );
 
+const ChatIcon = () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+    </svg>
+);
+
 const STATUS_OPTIONS = [
     { value: 'available', label: 'Available (Public)' },
     { value: 'draft', label: 'Draft (Private)' },
@@ -58,26 +64,25 @@ const STATUS_OPTIONS = [
 const AdminDashboard = () => {
     const { user } = useContext(AuthContext);
     const [properties, setProperties] = useState([]);
-    const [messages, setMessages] = useState([]);
+    const [conversations, setConversations] = useState([]);
     const [counts, setCounts] = useState({ total: 0, available: 0, draft: 0, reserved: 0, rented: 0, archived: 0 });
     const [activeTab, setActiveTab] = useState('properties');
     const [statusFilter, setStatusFilter] = useState('all');
     const [deletingId, setDeletingId] = useState(null);
-    const [deletingMsgId, setDeletingMsgId] = useState(null);
     const [updatingStatusId, setUpdatingStatusId] = useState(null);
     const [notification, setNotification] = useState('');
 
     const fetchData = async () => {
         try {
-            const [manageRes, msgRes] = await Promise.all([
+            const [manageRes, convoRes] = await Promise.all([
                 axios.get('http://localhost:5000/api/properties/manage'),
-                axios.get('http://localhost:5000/api/messages')
+                axios.get('http://localhost:5000/api/conversations')
             ]);
             setProperties(manageRes.data.properties || []);
             if (manageRes.data.counts) {
                 setCounts(manageRes.data.counts);
             }
-            setMessages(msgRes.data || []);
+            setConversations(convoRes.data || []);
         } catch (err) {
             console.error('Error fetching dashboard data:', err);
         }
@@ -131,21 +136,7 @@ const AdminDashboard = () => {
         }
     };
 
-    const handleDeleteMessage = async (msgId) => {
-        if (!window.confirm('Delete this inquiry message?')) return;
-        setDeletingMsgId(msgId);
-        try {
-            await axios.delete(`http://localhost:5000/api/messages/${msgId}`);
-            setMessages(prev => prev.filter(m => m._id !== msgId));
-            setNotification('Message removed.');
-            setTimeout(() => setNotification(''), 3000);
-        } catch (err) {
-            console.error(err);
-            alert(err.response?.data?.msg || 'Failed to delete message.');
-        } finally {
-            setDeletingMsgId(null);
-        }
-    };
+    const totalUnread = conversations.reduce((sum, c) => sum + (c.unreadOwner || 0), 0);
 
     if (!user || (user.role !== 'admin' && user.role !== 'owner')) {
         return (
@@ -218,9 +209,15 @@ const AdminDashboard = () => {
                         <span className="admin-stat__label">Live & Available</span>
                     </div>
                     <div className="admin-stat">
-                        <span className="admin-stat__value">{messages.length}</span>
-                        <span className="admin-stat__label">{isSystemAdmin ? 'Total inquiries' : 'Inquiries for your listings'}</span>
+                        <span className="admin-stat__value">{conversations.length}</span>
+                        <span className="admin-stat__label">{isSystemAdmin ? 'Total conversations' : 'Conversations'}</span>
                     </div>
+                    {totalUnread > 0 && (
+                        <div className="admin-stat">
+                            <span className="admin-stat__value" style={{ color: '#e63946' }}>{totalUnread}</span>
+                            <span className="admin-stat__label">Unread messages</span>
+                        </div>
+                    )}
                     {avgPrice !== null && (
                         <div className="admin-stat">
                             <span className="admin-stat__value">${avgPrice.toLocaleString()}</span>
@@ -245,7 +242,8 @@ const AdminDashboard = () => {
                         className={`admin-tab${activeTab === 'messages' ? ' admin-tab--active' : ''}`}
                         onClick={() => setActiveTab('messages')}
                     >
-                        {isSystemAdmin ? 'All Messages' : 'Inquiries'} ({messages.length})
+                        {isSystemAdmin ? 'All Conversations' : 'Inbox'} ({conversations.length})
+                        {totalUnread > 0 && <span className="admin-tab-badge">{totalUnread}</span>}
                     </button>
                 </div>
 
@@ -394,49 +392,66 @@ const AdminDashboard = () => {
 
                 {/* --- Messages tab --- */}
                 {activeTab === 'messages' && (
-                    messages.length === 0 ? (
+                    conversations.length === 0 ? (
                         <div className="admin-empty">
                             <InboxIcon className="admin-empty__icon" />
                             <p className="admin-empty__text">
                                 {isSystemAdmin
-                                    ? 'No inquiries recorded in the system yet.'
-                                    : 'No tenant inquiries received for your listings yet.'
+                                    ? 'No conversations in the system yet.'
+                                    : 'No tenant conversations for your listings yet.'
                                 }
                             </p>
                         </div>
                     ) : (
-                        <div className="admin-messages">
-                            {messages.map((msg) => (
-                                <div key={msg._id} className="msg-card">
-                                    <div className="msg-avatar" aria-hidden="true">
-                                        {(msg.userEmail || 'U')[0].toUpperCase()}
-                                    </div>
-                                    <div style={{ flex: 1 }}>
-                                        <div className="msg-header">
-                                            <span className="msg-email">{msg.userEmail}</span>
-                                            <span className="msg-re">
-                                                re: {msg.propertyId ? msg.propertyId.title : 'Listing'}
-                                            </span>
-                                        </div>
-                                        <p className="msg-body">{msg.message}</p>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'var(--s2)' }}>
-                                            <span style={{ fontSize: '11px', color: 'var(--ink-3)' }}>
-                                                {new Date(msg.date).toLocaleDateString()} at {new Date(msg.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                            </span>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleDeleteMessage(msg._id)}
-                                                disabled={deletingMsgId === msg._id}
-                                                className="btn btn-ghost btn-sm"
-                                                style={{ color: 'var(--err)', fontSize: '12px', padding: '2px 8px' }}
-                                            >
-                                                Delete inquiry
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                        <>
+                            <div style={{ marginBottom: 'var(--s3)', textAlign: 'right' }}>
+                                <Link to="/messages" className="btn btn-outline" style={{ fontSize: 'var(--text-sm)', gap: '6px' }}>
+                                    <ChatIcon /> Open full inbox
+                                </Link>
+                            </div>
+                            <div className="admin-messages">
+                                {conversations.map((convo) => {
+                                    const unread = convo.unreadOwner || 0;
+                                    return (
+                                        <Link
+                                            key={convo._id}
+                                            to={`/messages?thread=${convo._id}`}
+                                            className={`msg-card msg-card--link ${unread > 0 ? 'msg-card--unread' : ''}`}
+                                        >
+                                            <div className="msg-avatar" aria-hidden="true">
+                                                {(convo.tenant?.name || 'U')[0].toUpperCase()}
+                                            </div>
+                                            <div style={{ flex: 1 }}>
+                                                <div className="msg-header">
+                                                    <span className="msg-email">
+                                                        {convo.tenant?.name || 'Tenant'}
+                                                        {unread > 0 && (
+                                                            <span className="msg-unread-dot" />
+                                                        )}
+                                                    </span>
+                                                    <span className="msg-re">
+                                                        re: {convo.property?.title || 'Listing'}
+                                                    </span>
+                                                </div>
+                                                <p className="msg-body">
+                                                    {convo.lastMessage?.body || 'No messages yet'}
+                                                </p>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'var(--s2)' }}>
+                                                    <span style={{ fontSize: '11px', color: 'var(--ink-3)' }}>
+                                                        {convo.lastMessage?.date
+                                                            ? `${new Date(convo.lastMessage.date).toLocaleDateString()} at ${new Date(convo.lastMessage.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                                                            : ''}
+                                                    </span>
+                                                    {unread > 0 && (
+                                                        <span className="msg-unread-badge">{unread} new</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </Link>
+                                    );
+                                })}
+                            </div>
+                        </>
                     )
                 )}
 

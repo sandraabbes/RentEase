@@ -1,5 +1,6 @@
-import { useContext } from 'react';
+import { useContext, useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import axios from 'axios';
 import AuthContext from '../context/AuthContext';
 import FavoritesContext from '../context/FavoritesContext';
 
@@ -9,12 +10,41 @@ const HeartNavIcon = () => (
     </svg>
 );
 
+const ChatNavIcon = () => (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+    </svg>
+);
+
 const Navbar = () => {
     const { user, logout } = useContext(AuthContext);
     const { favoriteIds } = useContext(FavoritesContext);
     const location = useLocation();
+    const [unreadCount, setUnreadCount] = useState(0);
 
     const isOwnerOrAdmin = user && (user.role === 'admin' || user.role === 'owner');
+
+    // Fetch unread message count
+    useEffect(() => {
+        if (!user) {
+            setUnreadCount(0);
+            return;
+        }
+
+        const fetchUnread = async () => {
+            try {
+                const res = await axios.get('http://localhost:5000/api/conversations/unread-count');
+                setUnreadCount(res.data.unread || 0);
+            } catch (err) {
+                // Silently fail
+            }
+        };
+
+        fetchUnread();
+        // Poll every 30 seconds
+        const interval = setInterval(fetchUnread, 30000);
+        return () => clearInterval(interval);
+    }, [user, location.pathname]);
 
     return (
         <nav className="navbar">
@@ -43,6 +73,20 @@ const Navbar = () => {
                                 <span>Saved</span>
                                 {favoriteIds.length > 0 && (
                                     <span className="nav-badge-pill">{favoriteIds.length}</span>
+                                )}
+                            </Link>
+                        </li>
+
+                        {/* Messages Link */}
+                        <li>
+                            <Link
+                                to="/messages"
+                                className={`nav-link nav-link--messages ${location.pathname === '/messages' ? 'nav-link--active' : ''}`}
+                            >
+                                <ChatNavIcon />
+                                <span>{isOwnerOrAdmin ? 'Inbox' : 'Messages'}</span>
+                                {unreadCount > 0 && (
+                                    <span className="nav-badge-pill nav-badge-pill--unread">{unreadCount}</span>
                                 )}
                             </Link>
                         </li>

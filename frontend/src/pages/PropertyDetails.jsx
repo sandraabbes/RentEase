@@ -68,6 +68,12 @@ const HeartIcon = ({ filled }) => (
     </svg>
 );
 
+const ChatIcon = () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+    </svg>
+);
+
 const PropertyDetails = () => {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -79,6 +85,7 @@ const PropertyDetails = () => {
     const [message, setMessage] = useState('');
     const [msgSent, setMsgSent] = useState(false);
     const [sending, setSending] = useState(false);
+    const [conversationId, setConversationId] = useState(null);
 
     useEffect(() => {
         const fetchProperty = async () => {
@@ -94,17 +101,24 @@ const PropertyDetails = () => {
 
     const handleSendMessage = async (e) => {
         e.preventDefault();
+        if (!user) {
+            navigate('/login');
+            return;
+        }
         setSending(true);
         try {
-            await axios.post('http://localhost:5000/api/messages', {
+            const res = await axios.post('http://localhost:5000/api/conversations', {
                 propertyId: id,
-                userEmail: user ? user.email : 'guest@example.com',
                 message
             });
+            setConversationId(res.data._id);
             setMsgSent(true);
             setMessage('');
         } catch (err) {
             console.error(err);
+            if (err.response?.data?.msg) {
+                alert(err.response.data.msg);
+            }
         } finally {
             setSending(false);
         }
@@ -123,6 +137,11 @@ const PropertyDetails = () => {
     const formattedDate = property.availableFrom
         ? new Date(property.availableFrom).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
         : 'Immediate';
+
+    const isOwnListing = user && property.owner && (
+        (typeof property.owner === 'string' && property.owner === user._id) ||
+        (property.owner._id && property.owner._id === user._id)
+    );
 
     return (
         <div className="container">
@@ -299,34 +318,52 @@ const PropertyDetails = () => {
                                 {property.owner && property.owner.name ? `Managed by ${property.owner.name}` : 'Direct listing by verified owner'}
                             </p>
 
-                            {msgSent && (
+                            {isOwnListing ? (
+                                <div className="message-info-box">
+                                    <ChatIcon />
+                                    <span>This is your listing. Tenant messages will appear in your <Link to="/messages" style={{ color: 'var(--accent)', fontWeight: 600 }}>Inbox</Link>.</span>
+                                </div>
+                            ) : !user ? (
+                                <div className="message-info-box">
+                                    <ChatIcon />
+                                    <span><Link to="/login" style={{ color: 'var(--accent)', fontWeight: 600 }}>Sign in</Link> to message the owner.</span>
+                                </div>
+                            ) : msgSent ? (
                                 <div className="message-success">
                                     <CheckIcon />
-                                    Message sent. The owner will contact you by email.
+                                    <div>
+                                        <p>Message sent! The owner can reply in-app.</p>
+                                        <Link
+                                            to={`/messages?thread=${conversationId}`}
+                                            className="msg-continue-link"
+                                        >
+                                            <ChatIcon /> View conversation
+                                        </Link>
+                                    </div>
                                 </div>
+                            ) : (
+                                <form onSubmit={handleSendMessage} noValidate>
+                                    <div className="form-group">
+                                        <label className="form-label" htmlFor="contact-message">Your message</label>
+                                        <textarea
+                                            id="contact-message"
+                                            value={message}
+                                            onChange={(e) => setMessage(e.target.value)}
+                                            placeholder="Hi, I'm interested in this property and would like to arrange a viewing…"
+                                            style={{ minHeight: '110px' }}
+                                            required
+                                        />
+                                    </div>
+                                    <button
+                                        type="submit"
+                                        className="btn btn-primary btn-block"
+                                        style={{ padding: '0.7rem' }}
+                                        disabled={sending || !message.trim()}
+                                    >
+                                        {sending ? 'Sending…' : 'Send message'}
+                                    </button>
+                                </form>
                             )}
-
-                            <form onSubmit={handleSendMessage} noValidate>
-                                <div className="form-group">
-                                    <label className="form-label" htmlFor="contact-message">Your message</label>
-                                    <textarea
-                                        id="contact-message"
-                                        value={message}
-                                        onChange={(e) => setMessage(e.target.value)}
-                                        placeholder="Hi, I'm interested in this property and would like to arrange a viewing…"
-                                        style={{ minHeight: '110px' }}
-                                        required
-                                    />
-                                </div>
-                                <button
-                                    type="submit"
-                                    className="btn btn-primary btn-block"
-                                    style={{ padding: '0.7rem' }}
-                                    disabled={sending || msgSent}
-                                >
-                                    {sending ? 'Sending…' : msgSent ? 'Message sent' : 'Send message'}
-                                </button>
-                            </form>
                         </div>
                     </div>
                 </div>
