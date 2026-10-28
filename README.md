@@ -1,4 +1,4 @@
-# Property Rental Platform
+# RentEase
 
 A simple MERN (MongoDB, Express, React, Node.js) application for browsing and managing rental properties.
 
